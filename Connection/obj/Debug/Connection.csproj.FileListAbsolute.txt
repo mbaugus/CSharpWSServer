@@ -1,0 +1,6 @@
+C:\Users\mbaug\source\repos\CSharpMUD\Connection\bin\Debug\Connection.dll
+C:\Users\mbaug\source\repos\CSharpMUD\Connection\bin\Debug\Connection.pdb
+C:\Users\mbaug\source\repos\CSharpMUD\Connection\obj\Debug\Connection.csprojResolveAssemblyReference.cache
+C:\Users\mbaug\source\repos\CSharpMUD\Connection\obj\Debug\Connection.csproj.CoreCompileInputs.cache
+C:\Users\mbaug\source\repos\CSharpMUD\Connection\obj\Debug\Connection.dll
+C:\Users\mbaug\source\repos\CSharpMUD\Connection\obj\Debug\Connection.pdb
