@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,50 +8,82 @@
     <title>Document</title>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
     <!-- Latest compiled and minified CSS -->
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u"
+        crossorigin="anonymous">
 </head>
+
 <body>
     <div class="container">
-    <textarea id="chat">Hello</textarea>
-    <br>
-    <label class="label">Send your message:</label><input type="text" id="message">
+        <div class="jumbotron">
+            <h1 class="heading-3">Websocket Chat room</h1>
+        </div>
+
+        <label>Your name</label>
+        <input type="text" id="name">
+        <br>
+        <button id="connectBtn" class="button">Connect</button>
+        <br>
+        <button id="disconnectBtn" class="button">Disconnect</button>
+        <br>
+        <textarea id="chat" rows="7" cols="50" readonly>Chat Room Fun</textarea>
+        <br>
+        <br>
+        <label>Message</label>
+        <input type="text" id="message">
     </div>
 </body>
+
 </html>
 
 <script>
-$().ready(function(){
+    $().ready(function () {
 
-    var exampleSocket = new WebSocket("ws://localhost:8080/MUD");
-    
-    function SendMessage(message)
-    {
-        exampleSocket.send(message);
-    }
 
-    exampleSocket.onopen = function (event){
-        console.log("Connected to " + exampleSocket.url);
-        var message = "Hello!";
-        exampleSocket.send(message);
-    };
+        $("#connectBtn").on('click', function () {
+            var socket = new WebSocket("ws://localhost:8080/MUD");
 
-    exampleSocket.onmessage = function (event) {
-        message = JSON.parse(data);
-        $("#chat").value.message["MSG"];
-        console.log(event.data);
-    };
+            $('#disconnectBtn').on('click', function () { if (socket == undefined || socket == null) return; socket.close(); });
 
-    $('#message').on('keyup', function(event){
-        if(event.key === "Enter"){
-            SendMessage($(this).val);
-            $(this).val("");
-            return false;
-        }
+            function SendMessage(name, message) {
+                var output = JSON.stringify({
+                    Name: name,
+                    Message: message
+                })
+                socket.send(output);
+            }
+
+            socket.onopen = function (event) {
+                console.log("Connected to " + socket.url);
+            };
+
+            socket.onmessage = function (event) {
+                var data = JSON.parse(event.data);
+                var message = data["Message"];
+                var user = data["Name"];
+                var currentchat = $("#chat").val();
+                $("#chat").val(currentchat + "\n" + user + " says, " + message);
+            };
+
+            socket.onerror = function (event) {
+                console.log("Error: " + event.message);
+            };
+
+            socket.onclose = function (event) {
+                console.log("Socket closed:" + event.message);
+            };
+
+            $('#message').on('keyup', function (event) {
+            if (event.key === "Enter") {
+                var msg = $("#message").val();
+                var name = $("#name").val();
+                SendMessage(name,  msg);
+                $("#message").val("");
+                return false;
+            }
+        });
+
+        });
     });
-
-
-
-});
 
 
 </script>
