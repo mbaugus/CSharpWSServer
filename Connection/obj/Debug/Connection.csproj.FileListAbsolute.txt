@@ -12,3 +12,4 @@ C:\repos\CSharpWSServer\Connection\bin\Debug\Connection.dll
 C:\repos\CSharpWSServer\Connection\bin\Debug\Connection.pdb
 C:\repos\CSharpWSServer\Connection\bin\Debug\Newtonsoft.Json.dll
 C:\repos\CSharpWSServer\Connection\bin\Debug\Newtonsoft.Json.xml
+C:\repos\CSharpWSServer\Connection\obj\Debug\Connection.csproj.CopyComplete

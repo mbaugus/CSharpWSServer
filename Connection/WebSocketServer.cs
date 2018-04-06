@@ -5,8 +5,6 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Net;
 using System.Net.WebSockets;
-using System.Net.Http;
-using System.Threading;
 
 namespace Connection
 {
@@ -32,55 +30,78 @@ namespace Connection
 
         private int count = 0;
         private static int MaxConnections = 500;
-        Connection[] Connections = new Connection[MaxConnections];
 
-        // List<> connections
+        ChannelGroupSettings GroupSettings;
+        Dictionary<Guid, Connection> ConnectionReferences = new Dictionary<Guid, Connection>();
+        List<Connection> Connections = new List<Connection>();
 
-        public WebSocketServer()
+        public WebSocketServer(ChannelGroupSettings channelsettings = null)
         {
-            for (int i = 0; i < MaxConnections; i++)
+            if(channelsettings == null)
             {
-                Connections[i] = new Connection(i);
-                Connections[i].refId = i;
-                Connections[i].socket = null;
-                Connections[i].MessageReceived += new MessageEventHandler(this.ReceiveMessageFromSocket);
+                GroupSettings = new ChannelGroupSettings();
+            }
+            else
+            {
+                GroupSettings = channelsettings;
             }
         }
 
         private int GetFreeSlot()
         {
-            for(int i = 0; i < MaxConnections; i++)
-            {
-                if (!Connections[i].InUse)
-                {
-                    return i;
-                }
-            }
-            return -1;
+            return 0;
         }
 
-        public void SendAll(string message)
+        private void SortConnections()
         {
-            for(int i = 0; i < MaxConnections; i++)
+
+        }
+
+        public void SendAll(string channel, string message)
+        {
+            foreach (Connection c in Connections)
             {
-                if (Connections[i].InUse)
+                c.SendMessage(message);
+            }
+        }
+        public void SendAll(string channel, ICollection<string> collection)
+        {
+            foreach (string msg in collection)
+            {
+                foreach( Connection c in Connections)
                 {
-                    Connections[i].SendMessage(message);
+                    c.SendMessage(channel, msg);
                 }
             }
         }
 
-        public void Send(int refid, string message)
+        public void Send(Guid guid, string message, string nickname = null)
         {
-            if (Connections[refid].InUse)
-                Connections[refid].SendMessage(message);
+            if (nickname != null)
+            {
 
+            }
+            else
+            {
+                ConnectionReferences[guid].SendMessage(message);
+
+            }
+        }
+
+        private int LookupRefId(int id)
+        {
+            return 0;//ConnectionLocations[id];
         }
        
-        public void ReturnConnectionToPool(int referenceID, string message)
+        public void ReturnConnectionToPool(Guid referenceID, string message)
         {
-            Connections[referenceID].InUse = false;
-            Console.WriteLine($"Socket closed: {referenceID} Reason: {message}");
+            Connection c = ConnectionReferences[referenceID];
+            Connections.Remove(c);
+            ConnectionReferences.Remove(referenceID);
+            // for now just delete it, but we will use a pool soon
+
+            //Connections[referenceID].InUse = false;
+            //Console.WriteLine($"Socket closed: {referenceID} Reason: {message}");
         }
 
         public void ReceiveMessageFromSocket(object send, MessageEventArgs e)
@@ -93,7 +114,6 @@ namespace Connection
             else if(e.MsgType == MessageType.MESSAGERECEIVED)
             {
                 MessageReceivedEvent(e);
-               // Console.WriteLine($"Rec'd msg from Socket: {e.RefId}  Msg: {e.Message}");
             }
             else if(e.MsgType == MessageType.NEWCONNECTION)
             {
@@ -129,31 +149,38 @@ namespace Connection
             try
             {
                 wsctx = await listenerContext.AcceptWebSocketAsync(subProtocol: null);
-                Interlocked.Increment(ref count);
-                //Console.WriteLine("Processed: {0}", count);
             }
             catch (Exception e)
             {
-                // The upgrade process failed somehow. For simplicity lets assume it was a failure on the part of the server and indicate this using 500.
                 listenerContext.Response.StatusCode = 500;
                 listenerContext.Response.Close();
-                //Console.WriteLine("Exception: {0}", e);
                 return;
             }
             Console.WriteLine($"Secure:{wsctx.IsSecureConnection}, Authenticated: {wsctx.IsAuthenticated}, IsLocal: {wsctx.IsLocal}, " +
                 $"Origin: {wsctx.Origin}, WS Version: {wsctx.SecWebSocketVersion}, User: {wsctx.User}");
 
+            /*
+            for (int i = 0; i < MaxConnections; i++)
+            {
+                Connections[i] = new Connection(i);
+                Connections[i].refId = -1;
+                Connections[i].socket = null;
+                Connections[i].MessageReceived += new MessageEventHandler(this.ReceiveMessageFromSocket);
+            }
+            */
 
-            WebSocket webSocket = wsctx.WebSocket;
-            int freeid = GetFreeSlot();
-            Connection c = Connections[freeid];
-            c.socket = webSocket;
-            c.InUse = true;
-            c.name = "";
+            Guid guid = Guid.NewGuid();
+            Connection connection = new Connection(GroupSettings);
+            connection.socket = wsctx.WebSocket;
+            connection.guid = guid;
 
-            NewConnectionEvent(new MessageEventArgs(freeid, "", MessageType.MESSAGERECEIVED));
+            Connections.Add(connection);
+            ConnectionReferences[guid] = connection;
+
+            connection.MessageReceived += new MessageEventHandler(this.ReceiveMessageFromSocket);
+            NewConnectionEvent(new MessageEventArgs(guid, "", MessageType.MESSAGERECEIVED, ""));
 #pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
-            c.ReceiveAsync();
+            connection.ReceiveAsync();
 #pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
         }
     }

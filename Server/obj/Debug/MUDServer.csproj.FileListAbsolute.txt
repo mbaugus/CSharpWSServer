@@ -9,3 +9,8 @@ C:\repos\CSharpWSServer\Server\bin\Debug\Server.exe
 C:\repos\CSharpWSServer\Server\bin\Debug\Server.pdb
 C:\repos\CSharpWSServer\Server\bin\Debug\Newtonsoft.Json.dll
 C:\repos\CSharpWSServer\Server\bin\Debug\Newtonsoft.Json.xml
+C:\repos\CSharpWSServer\Server\bin\Debug\EntityFramework.dll
+C:\repos\CSharpWSServer\Server\bin\Debug\EntityFramework.SqlServer.dll
+C:\repos\CSharpWSServer\Server\bin\Debug\EntityFramework.xml
+C:\repos\CSharpWSServer\Server\bin\Debug\EntityFramework.SqlServer.xml
+C:\repos\CSharpWSServer\Server\obj\Debug\MUDServer.csproj.CopyComplete

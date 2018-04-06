@@ -17,14 +17,17 @@ namespace Connection
     public class MessageEventArgs : EventArgs
     {
         public string Message { get; set; }
-        public int RefId { get; set; }
+        public Guid RefId { get; set; }
         public MessageType MsgType { get; set; }
-
-        public MessageEventArgs(int reference, string message, MessageType msgtype)
+        public string Nickname { get; set; }
+        public string ChannelName { get; set; }
+        public MessageEventArgs(Guid reference, string message, MessageType msgtype, string channelname, string nickname = "")
         {
             RefId = reference;
             Message = message;
             MsgType = msgtype;
+            Nickname = nickname;
+            ChannelName = channelname;
         }
     }
 

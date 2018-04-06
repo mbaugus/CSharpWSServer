@@ -19,11 +19,18 @@ namespace Server
     }
     class MUD
     {
+        Queue<string> outgoing = new Queue<string>();
 
         public void Start()
         {
             // pass port number
-            Connection.WebSocketServer wss = new Connection.WebSocketServer();
+            
+            ChannelGroupSettings settings = new ChannelGroupSettings();
+            settings.Channels.Add(new Channel(1024, "textchannel", ChannelPriority.HIGH, ChannelMessageTypes.TEXT));
+            settings.Channels.Add(new Channel(1024, "fileschannel", ChannelPriority.HIGH, ChannelMessageTypes.BINARY));
+            settings.Channels.Add(new Channel(1024, "jsonchannel", ChannelPriority.HIGH, ChannelMessageTypes.JSON));
+
+            Connection.WebSocketServer wss = new Connection.WebSocketServer(settings);
             wss.Start("http://localhost:8080/MUD/");
 
             wss.LostConnection += new MessageEventHandler(this.OnClosedConnection);
@@ -31,15 +38,16 @@ namespace Server
             wss.ClientMessageReceived += new MessageEventHandler(this.OnNewMessage);
 
 
-            JSONMessage message = new JSONMessage();
-            message.Message = "Hey";
-            message.Name = "Server";
+            //JSONMessage message = new JSONMessage();
+           // message.Message = "Hey";
+           // message.Name = "Server";
             //Console.WriteLine(msg);
             //BasicInfo binfo = JsonConvert.DeserializeObject<BasicInfo>(msg);
-            string json = JsonConvert.SerializeObject(message);
+            //string json = JsonConvert.SerializeObject(message);
+
             while (true)
-            {
-                wss.SendAll(json);
+            {   
+                wss.SendAll("jsonchannel", );
                 Thread.Sleep(500);
             }
         }
@@ -50,7 +58,9 @@ namespace Server
         }
         private void OnNewMessage(object send, MessageEventArgs e)
         {
-            WriteLine("New Message: " + e.Message);
+            //WriteLine("New Message: " + e.Message);
+            string message = "Channel: " + e.ChannelName + " from " + e.RefId + ", " + e.Message;
+            WriteLine(message);
         }
         private void OnClosedConnection(object send, MessageEventArgs e)
         {

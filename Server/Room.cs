@@ -27,10 +27,11 @@ namespace Server
         public int SERoomNumber { get; set; }
         public int SWRoomArea { get; set; }
         public int SWRoomNumber { get; set; }
-
+        public int UpRoomNumber { get; set; }
 
         List<Player> Players;
         List<Npc> Npc;
         List<Item> Items;
+        //List<SpecialExits> SpecialExits;
     }
 }

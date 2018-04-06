@@ -26,12 +26,16 @@ namespace Connection
         //public List<byte> builder = new List<byte>();
         public StringBuilder sb = new StringBuilder();
 
+        //socket is initiated by the Webserver
         public WebSocket socket = null;
-        public int refId = -1;
 
-        public string name = "";
+        // reference with guid, is faster lookup
+        public Guid guid { get; set; }
 
-        public bool InUse = false;
+        // reference with a nickname, can be slower to find
+        public string Nickname { get; set; }
+
+        Dictionary<string, Channel> Channels;
 
         public event MessageEventHandler MessageReceived;
         protected virtual void OnMessage(MessageEventArgs e)
@@ -39,10 +43,25 @@ namespace Connection
             MessageReceived?.Invoke(this, e);
         }
 
-        public Connection(int id)
+        public Connection(ChannelGroupSettings info)
         {
-            refId = id;
+            Channels = new Dictionary<string, Channel>();
+
+            if (info.Channels.Count < 1)
+            {
+                throw new Exception("You cannot have less than 1 channel in a Connection");
+            }
+            if ( info.Channels.Count > 16)
+            {
+                throw new Exception("You cannot have more than 16 channels in a Connection");
+            }
+
             ClearBuffer();
+
+            foreach (var c in info.Channels)
+            {
+                Channels[c.Name] = new Channel(c);
+            }
         }
 
         public async Task ReceiveAsync()
@@ -70,13 +89,19 @@ namespace Connection
                         KillSocket("Request to close socket from client");
                         return;
                     }
-                    if (receiveResult.MessageType != WebSocketMessageType.Text)
+                    if (receiveResult.MessageType == WebSocketMessageType.Text)
                     {
+                        /*
                         socket.Abort();
                         CloseSocketRequest("Cannot accept binary frames.");
                         await socket.CloseAsync(WebSocketCloseStatus.InvalidMessageType, "Cannot accept binary frame", CancellationToken.None);
                         KillSocket("Couldnt accept binary frame");
                         return;
+                        */
+                    }
+                    else if(receiveResult.MessageType == WebSocketMessageType.Binary)
+                    {
+
                     }
 
                     sb.Append(Encoding.UTF8.GetString(receiveBuffer, 0, receiveResult.Count));
@@ -87,8 +112,9 @@ namespace Connection
                 //Console.WriteLine(msg);
                 //BasicInfo binfo = JsonConvert.DeserializeObject<BasicInfo>(msg);
                 //string json = JsonConvert.SerializeObject(binfo);
-
-                OnMessage(new MessageEventArgs(refId, msg, MessageType.MESSAGERECEIVED));
+                string channel = "";
+                //ChannelMessageTypes msgtype = ChannelMessageTypes.TEXT;
+                OnMessage(new MessageEventArgs(guid, msg, MessageType.MESSAGERECEIVED, channel));
 
                 ClearBuffer();
 
@@ -116,16 +142,12 @@ namespace Connection
 
         public void KillSocket(string SpecialMessage)
         {
-            if (!this.InUse)
-                return;
-
             if (socket != null)
             {
                 socket.Dispose();
             }
 
-            OnMessage(new MessageEventArgs(refId, SpecialMessage, MessageType.SOCKETCLOSED));
-
+            OnMessage(new MessageEventArgs(guid, SpecialMessage, MessageType.SOCKETCLOSED, ""));
         }
 
         private void ClearBuffer()
