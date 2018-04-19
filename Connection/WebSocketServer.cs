@@ -61,7 +61,7 @@ namespace Connection
         {
             foreach (Connection c in Connections)
             {
-                c.SendMessage(message);
+                c.SendMessage(channel, message);
             }
         }
         public void SendAll(string channel, ICollection<string> collection)
@@ -75,7 +75,7 @@ namespace Connection
             }
         }
 
-        public void Send(Guid guid, string message, string nickname = null)
+        public void Send(Guid guid, string channelname, string message, string nickname = null)
         {
             if (nickname != null)
             {
@@ -83,7 +83,7 @@ namespace Connection
             }
             else
             {
-                ConnectionReferences[guid].SendMessage(message);
+                ConnectionReferences[guid].SendMessage(channelname, message);
 
             }
         }
@@ -106,16 +106,16 @@ namespace Connection
 
         public void ReceiveMessageFromSocket(object send, MessageEventArgs e)
         {
-            if(e.MsgType == MessageType.SOCKETCLOSED)
+            if(e.MsgType == MessageTypes.SOCKETCLOSED)
             {
                 LostConnectionEvent(e); // send event out
                 ReturnConnectionToPool(e.RefId, e.Message);
             }
-            else if(e.MsgType == MessageType.MESSAGERECEIVED)
+            else if(e.MsgType == MessageTypes.MESSAGERECEIVED)
             {
                 MessageReceivedEvent(e);
             }
-            else if(e.MsgType == MessageType.NEWCONNECTION)
+            else if(e.MsgType == MessageTypes.NEWCONNECTION)
             {
                 NewConnectionEvent(e);
             }
@@ -130,6 +130,7 @@ namespace Connection
 
             while (true)
             {
+                // await makes sure the context is returned to main program.
                 HttpListenerContext listenerContext = await listener.GetContextAsync();
                 if (listenerContext.Request.IsWebSocketRequest)
                 {
@@ -178,7 +179,7 @@ namespace Connection
             ConnectionReferences[guid] = connection;
 
             connection.MessageReceived += new MessageEventHandler(this.ReceiveMessageFromSocket);
-            NewConnectionEvent(new MessageEventArgs(guid, "", MessageType.MESSAGERECEIVED, ""));
+            NewConnectionEvent(new MessageEventArgs(guid, "", MessageTypes.MESSAGERECEIVED, ""));
 #pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
             connection.ReceiveAsync();
 #pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed

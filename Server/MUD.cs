@@ -26,28 +26,33 @@ namespace Server
             // pass port number
             
             ChannelGroupSettings settings = new ChannelGroupSettings();
-            settings.Channels.Add(new Channel(1024, "textchannel", ChannelPriority.HIGH, ChannelMessageTypes.TEXT));
-            settings.Channels.Add(new Channel(1024, "fileschannel", ChannelPriority.HIGH, ChannelMessageTypes.BINARY));
-            settings.Channels.Add(new Channel(1024, "jsonchannel", ChannelPriority.HIGH, ChannelMessageTypes.JSON));
+            settings.MakeChannel(new Channel(1024, "textchannel", ChannelPriority.HIGH, ChannelMessageTypes.TEXT));
+            settings.MakeChannel(new Channel(1024, "fileschannel", ChannelPriority.HIGH, ChannelMessageTypes.BINARY));
+            settings.MakeChannel(new Channel(1024, "jsonchannel", ChannelPriority.HIGH, ChannelMessageTypes.JSON));
+
 
             Connection.WebSocketServer wss = new Connection.WebSocketServer(settings);
-            wss.Start("http://localhost:8080/MUD/");
 
             wss.LostConnection += new MessageEventHandler(this.OnClosedConnection);
             wss.NewConnection += new MessageEventHandler(this.OnNewConnection);
             wss.ClientMessageReceived += new MessageEventHandler(this.OnNewMessage);
 
+            wss.Start("http://localhost:8080/MUD/");
 
-            //JSONMessage message = new JSONMessage();
-           // message.Message = "Hey";
-           // message.Name = "Server";
+            JSONMessage message = new JSONMessage();
+            message.Message = "Hey";
+            message.Name = "Server";
             //Console.WriteLine(msg);
+
+            string stringmessage = "Hello this is a string message";
+           
             //BasicInfo binfo = JsonConvert.DeserializeObject<BasicInfo>(msg);
-            //string json = JsonConvert.SerializeObject(message);
+            string json = JsonConvert.SerializeObject(message);
 
             while (true)
             {   
-                wss.SendAll("jsonchannel", );
+                wss.SendAll("jsonchannel",  json);
+                wss.SendAll("textchannel", stringmessage);
                 Thread.Sleep(500);
             }
         }

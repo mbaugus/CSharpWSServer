@@ -22,30 +22,91 @@ namespace Connection
         public const int BufferSize = 1024;
         // Receive buffer.  
         public byte[] receiveBuffer = new byte[BufferSize];
-
-        //public List<byte> builder = new List<byte>();
-        public StringBuilder sb = new StringBuilder();
-
         //socket is initiated by the Webserver
         public WebSocket socket = null;
-
         // reference with guid, is faster lookup
         public Guid guid { get; set; }
-
         // reference with a nickname, can be slower to find
         public string Nickname { get; set; }
-
+        // holds reference to channels by key
         Dictionary<string, Channel> Channels;
+        Dictionary<int, Channel> ChannelByNumber;
 
+        // used to cancel outgoing messages
+        CancellationToken AbortSendToken = new CancellationToken();
+        CancellationToken AbortReceiveToken = new CancellationToken();
+        // a flag to check if SendAsync on websocket has returned yet.
+        private bool SendInProgress = false;
+        // string build used for incoming messsages that may be fragmented
+        StringBuilder sb = new StringBuilder();
+        // list used to build incoming binary messages that also may be fragmented.
+        List<byte> bb = new List<byte>();
+
+        SocketMessage incomingMessage = new SocketMessage(BufferSize);
+        /// <summary>
+        /// 
+        /// </summary>
         public event MessageEventHandler MessageReceived;
+
         protected virtual void OnMessage(MessageEventArgs e)
         {
             MessageReceived?.Invoke(this, e);
         }
 
+        private void OnChannelMessage(object send, MessageEventArgs e)
+        {
+            OnMessage(e);
+        }
+
+        // OnMessage(new MessageEventArgs(guid, msg, MessageType.MESSAGERECEIVED, channel));
+
+        public async Task<bool> SendMessage(string channel, string message)
+        {
+            Channel c = Channels[channel];
+            if (c.MessageType == ChannelMessageTypes.BINARY)
+            {
+                return false;
+            }
+            c.Queue(message);
+            if (!SendInProgress) // dont send if the last async send hasnt returned, just queue.
+            {
+                await ProcessChannelOutput(c);
+            }
+            return true;
+        }
+
+        public async Task<bool> SendMessage(string channel, System.IO.FileStream filestream)
+        {
+            Channel c = Channels[channel];
+            if(c.MessageType != ChannelMessageTypes.BINARY)
+            {
+                return false;
+            }
+            c.Queue(filestream);
+            if (!SendInProgress) // dont send if the last async send hasnt returned, just queue.
+            {
+                await ProcessChannelOutput(c);
+            }
+            return true;
+        }
+
+        private async Task ProcessChannelOutput(Channel channel)
+        {
+            WebSocketMessageType type = channel.MessageType == ChannelMessageTypes.BINARY ? WebSocketMessageType.Binary : WebSocketMessageType.Text;
+            
+            while (channel.HasMoreToSend())
+            {
+                SendInProgress = true;
+                await socket.SendAsync(channel.GetNextChunk(), type, true, AbortSendToken);
+                SendInProgress = false;
+            }
+            
+        }
+
         public Connection(ChannelGroupSettings info)
         {
             Channels = new Dictionary<string, Channel>();
+            ChannelByNumber = new Dictionary<int, Channel>();
 
             if (info.Channels.Count < 1)
             {
@@ -60,14 +121,15 @@ namespace Connection
 
             foreach (var c in info.Channels)
             {
-                Channels[c.Name] = new Channel(c);
+                Channel ch = new Channel(c);
+                ch.MessageComplete += new MessageEventHandler(this.OnChannelMessage); // attach each channel to the event handler
+                Channels[c.Name] = ch;
+                ChannelByNumber[c.ChannelNumber] = ch;
             }
         }
 
         public async Task ReceiveAsync()
         {
-           // Console.WriteLine($"Recv Async: { socket.State}");
-
             try
             {
                 if (socket.State != WebSocketState.Open)
@@ -78,10 +140,25 @@ namespace Connection
                 }
 
                 WebSocketReceiveResult receiveResult = null;
-
+                int received = 0;
                 do
                 {
-                    receiveResult = await socket.ReceiveAsync(new ArraySegment<byte>(receiveBuffer), CancellationToken.None);
+                    // incomingMessage.buffer
+
+                    receiveResult = await socket.ReceiveAsync(new ArraySegment<byte>(incomingMessage.buffer), AbortReceiveToken);
+                    received += receiveResult.Count;
+                    if( !incomingMessage.ValidHeader && received >= 5)
+                    {
+                        if( !incomingMessage.Decode() )
+                        {
+                            // bad
+                            Console.WriteLine("Bad decode");
+                        }
+                    }
+                    if (receiveResult.Count > BufferSize)
+                    {
+                        // bad
+                    }
                     if (receiveResult.MessageType == WebSocketMessageType.Close)
                     {
                         socket.Abort();
@@ -89,35 +166,30 @@ namespace Connection
                         KillSocket("Request to close socket from client");
                         return;
                     }
+
                     if (receiveResult.MessageType == WebSocketMessageType.Text)
                     {
-                        /*
-                        socket.Abort();
-                        CloseSocketRequest("Cannot accept binary frames.");
-                        await socket.CloseAsync(WebSocketCloseStatus.InvalidMessageType, "Cannot accept binary frame", CancellationToken.None);
-                        KillSocket("Couldnt accept binary frame");
-                        return;
-                        */
+                        sb.Append(Encoding.UTF8.GetString(receiveBuffer, 0, receiveResult.Count));
                     }
                     else if(receiveResult.MessageType == WebSocketMessageType.Binary)
                     {
-
+                        bb.AddRange(receiveBuffer);
                     }
-
-                    sb.Append(Encoding.UTF8.GetString(receiveBuffer, 0, receiveResult.Count));
-
                 } while (!receiveResult.EndOfMessage);
 
-                string msg = sb.ToString();
-                //Console.WriteLine(msg);
-                //BasicInfo binfo = JsonConvert.DeserializeObject<BasicInfo>(msg);
-                //string json = JsonConvert.SerializeObject(binfo);
-                string channel = "";
-                //ChannelMessageTypes msgtype = ChannelMessageTypes.TEXT;
-                OnMessage(new MessageEventArgs(guid, msg, MessageType.MESSAGERECEIVED, channel));
+                // new message chunk here, figure out what to do with it.
 
-                ClearBuffer();
+                int channelNumber = incomingMessage.ChannelNumber;
+                Channel channel = GetChannel(channelNumber);
+                if(channel == null)
+                {
+                    // bad
+                    Console.WriteLine("Trying to access a nonexistant channel number i think.");
+                }
+                // let channel figure out what to do with it, but dont make a reference, as we reset it right after.
+                channel.GiveChunk(incomingMessage);
 
+                incomingMessage.Reset();
                 await ReceiveAsync();
             }
             catch (Exception e)
@@ -132,14 +204,6 @@ namespace Connection
             }
         }
 
-        public async void SendMessage(string message)
-        {
-            await socket.SendAsync(
-                    new ArraySegment<byte>(Encoding.UTF8.GetBytes(message), 0, Encoding.UTF8.GetByteCount(message)),
-                    WebSocketMessageType.Text,
-                    true, CancellationToken.None);
-        }
-
         public void KillSocket(string SpecialMessage)
         {
             if (socket != null)
@@ -147,7 +211,7 @@ namespace Connection
                 socket.Dispose();
             }
 
-            OnMessage(new MessageEventArgs(guid, SpecialMessage, MessageType.SOCKETCLOSED, ""));
+            OnMessage(new MessageEventArgs(guid, SpecialMessage, MessageTypes.SOCKETCLOSED, ""));
         }
 
         private void ClearBuffer()
@@ -159,6 +223,19 @@ namespace Connection
         private async void CloseSocketRequest(string msg)
         {
             await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, msg, CancellationToken.None);
+        }
+
+        private Channel GetChannel(int channelNumber)
+        {
+            Channel c = null;
+            ChannelByNumber.TryGetValue(channelNumber, out c);
+            return c;
+        }
+        private Channel GetChannel(string ChannelName)
+        {
+            Channel c = null;
+            Channels.TryGetValue(ChannelName, out c);
+            return c;
         }
     }
 }

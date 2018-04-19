@@ -14,5 +14,10 @@ namespace Connection
         {
             Channels = new List<Channel>();
         }
+        public void MakeChannel(Channel newchannel)
+        {
+            newchannel.ChannelNumber = Channels.Count + 1;
+            Channels.Add(newchannel);
+        }
     }
 }
